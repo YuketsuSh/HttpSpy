@@ -1,0 +1,26 @@
+{
+  "name": "httpspy",
+  "version": "1.0.0",
+  "description": "a command-line tool that allows developers to monitor and log HTTP requests",
+  "main": "bin/httpspy.js",
+  "scripts": {
+    "start": "node ./bin/httpspy.js start",
+    "stop": "node ./bin/httpspy.js stop"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YuketsuSh/HttpSpy.git"
+  },
+  "author": "Yuketsu",
+  "license": "GPL-3.0",
+  "bugs": {
+    "url": "https://github.com/YuketsuSh/HttpSpy/issues"
+  },
+  "homepage": "https://github.com/YuketsuSh/HttpSpy#readme",
+  "dependencies": {
+    "chalk": "^4.1.0",
+    "commander": "^10.0.0",
+    "dotenv": "^16.4.5",
+    "http-proxy": "^1.18.1"
+  }
+}
