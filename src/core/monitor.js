@@ -1,9 +1,10 @@
 const http = require('http');
 const https = require('https');
+const {logRequest} = require("./logger");
 
 let proxyServer = null;
 
-const startMonitoring =  () => {
+const startMonitoring =  (port =  8089) => {
   proxyServer = http.createServer((req, res) => {
     const requestData = {
       method: req.method,
@@ -17,6 +18,7 @@ const startMonitoring =  () => {
     });
 
     req.on('end', () => {
+      logRequest(requestData);
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       res.end('Request logged and forwarded');
     });
@@ -29,7 +31,7 @@ const startMonitoring =  () => {
 
   });
 
-  proxyServer.listen(process.env.PORT, () => {
+  proxyServer.listen(port, () => {
     console.log(`Listening on port ${process.env.PORT}`);
   });
 };
