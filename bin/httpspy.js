@@ -2,14 +2,18 @@
 
 const { Command } = require('commander');
 const chalk = require('chalk');
+const fs = require('fs');
 const {startMonitoring, stopMonitoring} = require("../src/core/monitor");
 const {saveLogs} = require("../src/core/logger");
 require('dotenv').config();
 
 const program = new Command();
 
-program.name('httpspy').description('CLI tool for HTTP monitoring')
-.version('1.0.0');
+program
+    .name('httpspy')
+    .description('CLI tool for HTTP monitoring')
+    .version('1.0.0', '-v, --version', 'output the version number')
+    .addHelpText('after', `\nAuthor: Yuketsu`);
 
 program.command('start')
 .description('Start the HTTP monitoring server')
@@ -18,13 +22,19 @@ program.command('start')
     startMonitoring(process.env.PORT);
 })
 
-program
-    .command('stop')
+program.command('stop')
     .description('Stop monitoring and save logs')
     .action(() => {
-        console.log(chalk.yellow('Stopping HTTP monitoring...'));
-        stopMonitoring();
-        saveLogs()
+        try {
+            saveLogs();
+
+            const pid = fs.readFileSync('./proxy-server.pid', 'utf8');
+            process.kill(pid);
+
+            fs.unlinkSync('./proxy-server.pid');
+        }catch (err){
+            console.log('No monitoring active to stop.');
+        }
     });
 
 program.parse(process.argv);

@@ -1,10 +1,17 @@
 const http = require('http');
-const https = require('https');
-const {logRequest} = require("./logger");
+const fs = require('fs');
+const { logRequest, saveLogs } = require('./logger');
 
 let proxyServer = null;
+let isMonitoringActive = false;
 
-const startMonitoring =  (port =  8089) => {
+const startMonitoring = (port = 8089) => {
+
+  if (isMonitoringActive) {
+    console.log('Monitoring is already active');
+    return;
+  }
+
   proxyServer = http.createServer((req, res) => {
     const requestData = {
       method: req.method,
@@ -28,22 +35,37 @@ const startMonitoring =  (port =  8089) => {
       res.writeHead(500);
       res.end('Internal Server Error');
     });
-
   });
 
   proxyServer.listen(port, () => {
-    console.log(`Listening on port ${process.env.PORT}`);
+    console.log(`HTTP monitoring started on port ${port}`);
+    isMonitoringActive = true;
+    fs.writeFileSync('./proxy-server.pid', process.pid.toString());
+  });
+
+  process.on('SIGINT', () => {
+    console.log('\nGracefully shutting down...');
+
+    saveLogs();
+
+    if (proxyServer && isMonitoringActive) {
+      proxyServer.close(() => {
+        console.log('HTTP monitoring stopped');
+        isMonitoringActive = false;
+
+        if (fs.existsSync('./proxy-server.pid')) {
+          fs.unlinkSync('./proxy-server.pid');
+        }
+
+        console.log('PID file removed.');
+
+        process.kill(process.pid, 'SIGKILL');
+      });
+    } else {
+      console.log('No active server, exiting immediately...');
+      process.kill(process.pid, 'SIGKILL');
+    }
   });
 };
 
-const stopMonitoring =  () => {
-  if (proxyServer){
-    proxyServer.close(() => {
-      console.log('HTTP monitoring stopped');
-    });
-  }else{
-    console.log('No monitoring active to stop.');
-  }
-};
-
-module.exports = { startMonitoring, stopMonitoring };
+module.exports = { startMonitoring };
