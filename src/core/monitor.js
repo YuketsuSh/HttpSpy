@@ -92,6 +92,10 @@ const handleHttpRequest = (req, res, filteredMethods, realtime) => {
     res.writeHead(500);
     res.end('Internal Server Error');
   });
+
+  res.on('error', (err) => {
+    console.error('Error writing response:', err);
+  });
 };
 
 const handleHttpsRequest = (req, socket, head, filteredMethods, realtime) => {
@@ -120,6 +124,11 @@ const handleHttpsRequest = (req, socket, head, filteredMethods, realtime) => {
   proxySocket.on('error', (err) => {
     console.error('Error handling HTTPS request:', err);
     socket.end();
+  });
+
+  socket.on('error', (err) => {
+    console.error('Socket error:', err);
+    proxySocket.end();
   });
 };
 
