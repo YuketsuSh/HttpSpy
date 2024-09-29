@@ -18,7 +18,7 @@ const logRequest = (data) => {
 
 };
 
-const saveLogs = (filename = 'logs.txt') => {
+const saveLogs = async (filename = 'logs.txt') => {
   const logsDir = path.join(__dirname, '../../logs');
   if (!fs.existsSync(logsDir)) {
     fs.mkdirSync(logsDir);
@@ -27,10 +27,11 @@ const saveLogs = (filename = 'logs.txt') => {
   const filePath = path.join(logsDir, filename);
 
   try {
-    fs.writeFileSync(filePath, JSON.stringify(logs,null, 2));
+    await fs.promises.writeFile(filePath, JSON.stringify(logs, null, 2));
     console.log(`Logs successfully saved to : ${filePath}`);
   }catch (err){
-    console.error(`Failed to save logs: ${error.message}`);
+    console.error(`Failed to save logs: ${err.message}`);
+    throw err;
   }
 
 };

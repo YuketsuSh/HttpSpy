@@ -11,16 +11,25 @@ const program = new Command();
 
 program
     .name('httpspy')
-    .description('CLI tool for HTTP monitoring')
+    .description('CLI tool for HTTP/HTTPS monitoring')
     .version('1.0.0', '-v, --version', 'output the version number')
     .addHelpText('after', `\nAuthor: Yuketsu`);
 
 program.command('start')
-.description('Start the HTTP monitoring server')
-.action(() => {
-    console.log(chalk.green(`Starting HTTP monitoring on port ${process.env.PORT || 8089}...`));
-    startMonitoring(process.env.PORT);
-})
+    .description('Start the HTTP monitoring server')
+    .option('-p, --port <number>', 'Specify the port', process.env.PORT || 8089)
+    .option('-m, --methods <methods>', 'Filter by HTTP methods (comma-separated)', '')
+    .option('-r, --realtime', 'Log requests in real-time to console', false)
+    .option('--https', 'Enable HTTPS monitoring with automatic SSL certificate generation', false)
+    .action((options) => {
+        const port = options.port;
+        const methods = options.methods ? options.methods.split(',') : [];
+        const realtime = options.realtime;
+        const useHttps = options.https;
+
+        console.log(chalk.green(`Starting HTTP${useHttps ? '/HTTPS' : ''} monitoring on port ${port}...`));
+        startMonitoring(port, { methods, realtime, useHttps  });
+    });
 
 program.command('stop')
     .description('Stop monitoring and save logs')
