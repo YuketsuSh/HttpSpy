@@ -131,7 +131,7 @@ const destroyActiveSockets = () => {
 };
 
 
-const startMonitoring = (port = 8089, { methods = [], realtime = false } = {}) => {
+const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFilePath = 'logs/logs.txt' } = {}) => {
   if (isMonitoringActive) {
     console.log('Monitoring is already active');
     return;
@@ -162,7 +162,7 @@ const startMonitoring = (port = 8089, { methods = [], realtime = false } = {}) =
     console.log('\nGracefully shutting down...');
 
     try {
-      await saveLogs();
+      await saveLogs(saveFilePath);
     } catch (error) {
       console.error('Failed to save logs during shutdown:', error);
     }
