@@ -5,10 +5,13 @@ HttpSpy is a command-line tool that allows developers to monitor and log HTTP/HT
 ## Features
 
 - **Real-time HTTP/HTTPS monitoring**: Captures and displays outgoing and incoming HTTP and HTTPS requests.
-- **Logs requests**: Saves logs in structured formats like JSON for future analysis.
+- **Logs requests**: Saves logs in structured formats like JSON, CSV, or plain text for future analysis.
 - **Custom filters**: Allows filtering by HTTP method (GET, POST, etc.).
 - **CLI Commands**: Control the monitoring process through start/stop commands.
-  - **Automatic SSL certificates**: Automatically generates SS-+
+- **HTTPS support**: Monitor both HTTP and HTTPS traffic with automatic SSL handling.
+- **Graceful shutdown**: Logs and saves requests properly when stopping the tool.
+
+## Installation
 
 1. Clone the repository:
     ```bash
@@ -38,40 +41,51 @@ To start capturing HTTP/HTTPS requests in real-time:
 You can specify the following options:
 
 - `-p, --port <number>`: Specify the port to start monitoring (default: 8089).
-- `-m, --methods <methods>`: Filter by HTTP methods (comma-separated, e.g., GET,POST).
+- `-m, --methods <methods>`: Filter by HTTP methods (comma-separated, e.g., GET, POST).
 - `-r, --realtime`: Display logs in real-time in the console.
-- `--https`: Enable HTTPS monitoring with automatic SSL certificate generation.
+- `--https`: Enable HTTPS monitoring with automatic SSL certificate handling.
+- `--save <filepath>`: Specify where to save the logs (default: logs/logs.txt).
+- `--debug`: Enable detailed logging for debugging purposes.
 
 Example:
 ```bash
-./bin/httpspy.js start -p 8070 -m GET --realtime --https
+./bin/httpspy.js start -p 8070 -m GET,POST --realtime --https --debug
 ```
 
 ### Stopping the monitoring:
 
-To stop the monitoring and save logs:
+To stop the monitoring and save the captured logs:
 ```bash
 ./bin/httpspy.js stop
 ```
 
-### Saving logs:
-
-Logs are automatically saved when you stop the monitoring, but you can also specify a custom log file:
+You can also specify a custom log file:
 ```bash
 ./bin/httpspy.js stop --save <filename>
 ```
 
 ### Example
+
+Start monitoring with real-time output and HTTPS enabled, then save the logs to a file:
 ```bash
 ./bin/httpspy.js start -p 8089 --https --realtime
-./bin/httpspy.js stop --save logs.txt
+./bin/httpspy.js stop --save logs/logs.txt
 ```
+
+### Log Formats
+
+- **JSON**: Structured format, useful for programmatic analysis.
+- **CSV**: Easy to import into spreadsheets or other data tools.
+- **Plain text**: Simple, human-readable format.
+
+Logs can be saved in any of these formats by specifying the filename with the appropriate extension (e.g., `logs.json`, `logs.csv`, `logs.txt`).
 
 ## Future Plans
 
 - **Daemon mode**: Run HttpSpy in the background as a service.
 - **Advanced filtering**: Include more granular filters such as request/response headers.
-- **Integration**: With monitoring tools like Prometheus and Grafana.
+- **Integration**: Support for monitoring tools like Prometheus and Grafana.
+- **Timeline Tracking**: Visualize request paths in a separate terminal (currently under development).
 
 ## Contributing
 
