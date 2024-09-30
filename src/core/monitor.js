@@ -72,7 +72,6 @@ const trackDataSizes = (req, res, callback) => {
  * @param {boolean} debug - Flag for capturing additional debug information.
  */
 const handleHttpRequest = async (req, res, filteredMethods, realtime, debug) => {
-
   const startTime = process.hrtime();
   let dataSentSize = 0;
   let dataReceivedSize = 0;
@@ -118,12 +117,22 @@ const handleHttpRequest = async (req, res, filteredMethods, realtime, debug) => 
     }
   });
 
-  res.writeHead(200, { 'Content-Type': 'text/plain'});
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Request logged and forwarded');
 };
 
+/**
+ * Handles incoming HTTPS requests.
+ * Only enabled if the --https flag is provided.
+ *
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} socket - The socket for the connection.
+ * @param {Buffer} head - The first packet of the connection.
+ * @param {Array} filteredMethods - The filtered methods (GET, POST, etc.).
+ * @param {boolean} realtime - Flag for logging in real-time.
+ * @param {boolean} debug - Flag for capturing additional debug information.
+ */
 const handleHttpsRequest = async (req, socket, head, filteredMethods, realtime, debug) => {
-
   const startTime = process.hrtime();
   let dataSentSize = 0;
   let dataReceivedSize = 0;
@@ -180,15 +189,13 @@ const handleHttpsRequest = async (req, socket, head, filteredMethods, realtime, 
   });
 };
 
-
 const destroyActiveSockets = () => {
   activeSockets.forEach((socket) => {
     socket.destroy();
   });
 };
 
-
-const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFilePath = 'logs/logs.txt', debug = false } = {}) => {
+const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFilePath = 'logs/logs.txt', debug = false, useHttps = false } = {}) => {
   if (isMonitoringActive) {
     console.log('Monitoring is already active');
     return;
@@ -200,9 +207,11 @@ const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFile
     handleHttpRequest(req, res, filteredMethods, realtime, debug);
   });
 
-  proxyServer.on('connect', (req, socket, head) => {
-    handleHttpsRequest(req, socket, head, filteredMethods, realtime, debug);
-  });
+  if (useHttps) {
+    proxyServer.on('connect', (req, socket, head) => {
+      handleHttpsRequest(req, socket, head, filteredMethods, realtime, debug);
+    });
+  }
 
   proxyServer.on('connection', (socket) => {
     activeSockets.add(socket);
@@ -210,7 +219,7 @@ const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFile
   });
 
   proxyServer.listen(port, () => {
-    console.log(`HTTP/HTTPS Transparent Proxy monitoring started on port ${port}`);
+    console.log(`HTTP${useHttps ? '/HTTPS' : ''} Transparent Proxy monitoring started on port ${port}`);
     isMonitoringActive = true;
     fs.writeFileSync('./proxy-server.pid', process.pid.toString());
   });
