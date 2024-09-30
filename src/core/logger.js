@@ -61,7 +61,8 @@ const saveLogs = async (filePath = 'logs/logs.txt') => {
   } else if (ext === '.txt') {
     formattedLogs = logs.map(log => `${log.method} | ${log.url} [${log.timestamp}]`).join('\n');
   } else {
-    formattedLogs = JSON.stringify(logs, null, 2);
+    console.error('Unsupported log format. Use .json, .csv, or .txt.');
+    return;
   }
 
   try {

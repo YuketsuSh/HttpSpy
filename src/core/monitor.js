@@ -155,8 +155,6 @@ const handleHttpsRequest = async (req, socket, head, filteredMethods, realtime, 
       dataSentSize += chunk.length;
     });
 
-    logRequest(requestData, debug);
-
     proxySocket.on('end', () => {
       const elapsedTime = process.hrtime(startTime);
       requestData.responseTime = `${(elapsedTime[0] * 1000 + elapsedTime[1] / 1e6).toFixed(2)}ms`;
