@@ -1,9 +1,14 @@
 const fs = require('fs');
 const path = require('path');
-const logs = [];
+let logs = [];
 
-const logRequest = (data) => {
-
+/**
+ * Logs the HTTP/HTTPS request data.
+ *
+ * @param {Object} data - The request data to log.
+ * @param {boolean} debug - Flag to capture additional debug information.
+ */
+const logRequest = (data, debug = false) => {
   const logEntry = {
     method: data.method,
     url: data.url,
@@ -12,12 +17,26 @@ const logRequest = (data) => {
     timestamp: new Date().toISOString(),
   };
 
+  if (debug) {
+    logEntry.sourceIP = data.sourceIP || 'N/A';
+    logEntry.sourcePort = data.sourcePort || 'N/A';
+    logEntry.destinationIP = data.destinationIP || 'N/A';
+    logEntry.destinationPort = data.destinationPort || 'N/A';
+    logEntry.responseTime = data.responseTime || 'N/A';
+    logEntry.dataSentSize = data.dataSentSize || 'N/A';
+    logEntry.dataReceivedSize = data.dataReceivedSize || 'N/A';
+  }
+
   logs.push(logEntry);
 
-  console.log(`Loggged request: ${logEntry.method} | ${logEntry.url}`);
-
+  console.log(`Logged request: ${logEntry.method} | ${logEntry.url}`);
 };
 
+/**
+ * Saves logs to a file in the appropriate format (JSON, CSV, or TXT).
+ *
+ * @param {string} [filePath='logs/logs.txt'] - The file path where logs should be saved.
+ */
 const saveLogs = async (filePath = 'logs/logs.txt') => {
   const dir = path.dirname(filePath);
 
@@ -53,5 +72,9 @@ const saveLogs = async (filePath = 'logs/logs.txt') => {
     throw err;
   }
 };
+
+process.on('exit', () => {
+  console.log('Application exiting, saving logs...');
+});
 
 module.exports = { logRequest, saveLogs };

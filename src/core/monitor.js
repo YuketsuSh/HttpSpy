@@ -1,8 +1,7 @@
 const http = require('http');
 const https = require('https');
 const net = require('net');
-const path = require('path');
-const forge = require('node-forge');
+const dns = require('dns');
 const fs = require('fs');
 const { logRequest, saveLogs } = require('./logger');
 
@@ -10,62 +9,93 @@ let proxyServer = null;
 let isMonitoringActive = false;
 const activeSockets = new Set();
 
-const certsDir = path.join(__dirname, '../../certs');
-const rootCertPath = path.join(certsDir, 'root-cert.pem');
-const rootKeyPath = path.join(certsDir, 'root-key.pem');
-
-const generateSSLCertificates = (hostname) => {
-  if (!fs.existsSync(rootCertPath) || !fs.existsSync(rootKeyPath)) {
-    console.log('Root SSL Certificates not found, Generating new certificates...');
-    const pki = forge.pki;
-    const keys = pki.rsa.generateKeyPair(2048);
-    const cert = pki.createCertificate();
-
-    cert.publicKey = keys.publicKey;
-    cert.serialNumber = '01';
-    cert.validity.notBefore = new Date();
-    cert.validity.notAfter = new Date();
-    cert.validity.notAfter.setFullYear(cert.validity.notAfter.getFullYear() + 1);
-
-    const attrs = [
-      { name: 'commonName', value: hostname || 'localhost' },
-      { name: 'countryName', value: 'US' },
-      { shortName: 'ST', value: 'California' },
-      { name: 'localityName', value: 'San Francisco' },
-      { name: 'organizationName', value: 'My Company' },
-      { shortName: 'OU', value: 'My Division' }
-    ];
-
-    cert.setSubject(attrs);
-    cert.setIssuer(attrs);
-    cert.setExtensions([
-      { name: 'basicConstraints', cA: true },
-      { name: 'keyUsage', keyCertSign: true, digitalSignature: true, keyEncipherment: true },
-      { name: 'extKeyUsage', serverAuth: true },
-      { name: 'nsCertType', sslServer: true },
-      { name: 'subjectAltName', altNames: [{ type: 2, value: hostname }] }
-    ]);
-
-    cert.sign(keys.privateKey);
-
-    const privateKeyPem = pki.privateKeyToPem(keys.privateKey);
-    const certPem = pki.certificateToPem(cert);
-
-    fs.writeFileSync(rootKeyPath, privateKeyPem);
-    fs.writeFileSync(rootCertPath, certPem);
-    console.log('Root SSL Certificates generated successfully');
-  }
+/**
+ * Resolves the public IP of a hostname.
+ *
+ * @param {string} hostname - The hostname to resolve.
+ * @returns {Promise<string>} - The resolved public IP address.
+ */
+const resolvePublicIP = (hostname) => {
+  return new Promise((resolve, reject) => {
+    dns.lookup(hostname, { family: 4 }, (err, address) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(address);
+      }
+    });
+  });
 };
 
-const handleHttpRequest = (req, res, filteredMethods, realtime) => {
+/**
+ * Tracks data sent and received via sockets.
+ *
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ * @param {Function} callback - The function to call with data metrics.
+ */
+const trackDataSizes = (req, res, callback) => {
+  let dataSentSize = 0;
+  let dataReceivedSize = 0;
+
+  req.on('data', (chunk) => {
+    dataSentSize += chunk.length;
+  });
+
+  res.on('data', (chunk) => {
+    dataReceivedSize += chunk.length;
+  });
+
+  res.on('finish', () => {
+    callback({
+      dataSentSize: `${dataSentSize} bytes`,
+      dataReceivedSize: `${dataReceivedSize} bytes`
+    });
+  });
+
+  res.on('error', (err) => {
+    console.error('Error with response data tracking:', err);
+  });
+
+  req.on('error', (err) => {
+    console.error('Error with request data tracking:', err);
+  });
+};
+
+/**
+ * Handles incoming HTTP requests.
+ *
+ * @param {Object} req - The HTTP request object.
+ * @param {Object} res - The HTTP response object.
+ * @param {Array} filteredMethods - The filtered methods (GET, POST, etc.).
+ * @param {boolean} realtime - Flag for logging in real-time.
+ * @param {boolean} debug - Flag for capturing additional debug information.
+ */
+const handleHttpRequest = async (req, res, filteredMethods, realtime, debug) => {
+
+  const startTime = process.hrtime();
+  let dataSentSize = 0;
+  let dataReceivedSize = 0;
+
   const requestData = {
     method: req.method,
     url: req.url,
     headers: req.headers,
-    body: req.body || ''
+    body: req.body || '',
+    sourceIP: req.socket.remoteAddress,
+    sourcePort: req.socket.remotePort,
+    destinationIP: req.socket.localAddress,
+    destinationPort: req.socket.localPort,
   };
 
   const isMethodAllowed = filteredMethods.length === 0 || filteredMethods.includes(req.method.toUpperCase());
+
+  try {
+    const { hostname } = new URL(req.url);
+    requestData.destinationIP = await resolvePublicIP(hostname);
+  } catch (err) {
+    console.error('Failed to resolve IP:', err);
+  }
 
   if (!isMethodAllowed) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
@@ -73,36 +103,35 @@ const handleHttpRequest = (req, res, filteredMethods, realtime) => {
     return;
   }
 
-  req.on('data', (chunk) => {
-    requestData.body += chunk;
-  });
+  trackDataSizes(req, res, (dataMetrics) => {
+    const elapsedTime = process.hrtime(startTime);
+    const responseTime = `${(elapsedTime[0] * 1000 + elapsedTime[1] / 1e6).toFixed(2)}ms`;
 
-  req.on('end', () => {
-    logRequest(requestData);
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Request logged and forwarded');
+    logRequest({
+      ...requestData,
+      responseTime,
+      ...dataMetrics
+    }, debug);
 
     if (realtime) {
       console.log(`[Real-time] ${req.method} ${req.url}`);
     }
   });
 
-  req.on('error', (err) => {
-    console.error('Error handling request:', err);
-    res.writeHead(500);
-    res.end('Internal Server Error');
-  });
-
-  res.on('error', (err) => {
-    console.error('Error writing response:', err);
-  });
+  res.writeHead(200, { 'Content-Type': 'text/plain'});
+  res.end('Request logged and forwarded');
 };
 
-const handleHttpsRequest = (req, socket, head, filteredMethods, realtime) => {
+const handleHttpsRequest = async (req, socket, head, filteredMethods, realtime, debug) => {
+
+  const startTime = process.hrtime();
+  let dataSentSize = 0;
+  let dataReceivedSize = 0;
+
   const { port, hostname } = new URL(`https://${req.url}`);
   console.log(`Intercepting HTTPS request to: ${hostname}`);
 
-  const proxySocket = net.connect(port || 443, hostname, () => {
+  const proxySocket = net.connect(port || 443, hostname, async () => {
     socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
     proxySocket.write(head);
     proxySocket.pipe(socket);
@@ -112,13 +141,34 @@ const handleHttpsRequest = (req, socket, head, filteredMethods, realtime) => {
       method: req.method,
       url: req.url,
       headers: req.headers,
-      body: req.body || ''
+      sourceIP: req.socket.remoteAddress,
+      sourcePort: req.socket.remotePort,
+      destinationIP: await resolvePublicIP(hostname),
+      destinationPort: proxySocket.remotePort
     };
-    logRequest(requestData);
 
-    if (realtime) {
-      console.log(`[Real-time HTTPS] ${req.method} ${req.url}`);
-    }
+    proxySocket.on('data', (chunk) => {
+      dataReceivedSize += chunk.length;
+    });
+
+    socket.on('data', (chunk) => {
+      dataSentSize += chunk.length;
+    });
+
+    logRequest(requestData, debug);
+
+    proxySocket.on('end', () => {
+      const elapsedTime = process.hrtime(startTime);
+      requestData.responseTime = `${(elapsedTime[0] * 1000 + elapsedTime[1] / 1e6).toFixed(2)}ms`;
+      requestData.dataSentSize = `${dataSentSize} bytes`;
+      requestData.dataReceivedSize = `${dataReceivedSize} bytes`;
+
+      logRequest(requestData, debug);
+
+      if (realtime) {
+        console.log(`[Real-time HTTPS] ${req.method} ${req.url}`);
+      }
+    });
   });
 
   proxySocket.on('error', (err) => {
@@ -140,7 +190,7 @@ const destroyActiveSockets = () => {
 };
 
 
-const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFilePath = 'logs/logs.txt' } = {}) => {
+const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFilePath = 'logs/logs.txt', debug = false } = {}) => {
   if (isMonitoringActive) {
     console.log('Monitoring is already active');
     return;
@@ -149,11 +199,11 @@ const startMonitoring = (port = 8089, { methods = [], realtime = false, saveFile
   const filteredMethods = methods.map(method => method.toUpperCase());
 
   proxyServer = http.createServer((req, res) => {
-    handleHttpRequest(req, res, filteredMethods, realtime);
+    handleHttpRequest(req, res, filteredMethods, realtime, debug);
   });
 
   proxyServer.on('connect', (req, socket, head) => {
-    handleHttpsRequest(req, socket, head, filteredMethods, realtime);
+    handleHttpsRequest(req, socket, head, filteredMethods, realtime, debug);
   });
 
   proxyServer.on('connection', (socket) => {

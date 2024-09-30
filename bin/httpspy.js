@@ -22,15 +22,17 @@ program.command('start')
     .option('-r, --realtime', 'Log requests in real-time to console', false)
     .option('--https', 'Enable HTTPS monitoring with automatic SSL certificate generation', false)
     .option('--save <filepath>', 'Save logs to the specified filepath or filename', 'logs/logs.txt')
+    .option('--debug', 'Enable detailed logging for debugging purposes', false)
     .action((options) => {
         const port = options.port;
         const methods = options.methods ? options.methods.split(',') : [];
         const realtime = options.realtime;
         const useHttps = options.https;
         const saveFilePath = options.save;
+        const debug = options.debug;
 
         console.log(chalk.green(`Starting HTTP${useHttps ? '/HTTPS' : ''} monitoring on port ${port}...`));
-        startMonitoring(port, { methods, realtime, useHttps, saveFilePath });
+        startMonitoring(port, { methods, realtime, useHttps, saveFilePath, debug });
 
     });
 
